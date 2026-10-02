@@ -37,7 +37,8 @@ jobs:
       - name: Run pytest
         run: pytest -v
 
-  environment-check:
+
+  environment-promotion:
     name: Environment Promotion
     if: github.event_name == 'push'
     needs: test
@@ -49,3 +50,41 @@ jobs:
     steps:
       - name: Show promoted environment
         run: echo "Promoted to ${{ github.ref_name }}"
+
+
+  notify-success:
+    name: Notify Teams - Success
+    if: success() && github.event_name == 'push'
+    needs:
+      - test
+      - environment-promotion
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Send success message to Teams
+        env:
+          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
+        run: |
+          curl -X POST \
+            -H "Content-Type: application/json" \
+            -d "{\"text\":\"✅ Brewsite pipeline succeeded on branch ${{ github.ref_name }}. Commit: ${{ github.sha }}\"}" \
+            "$TEAMS_WEBHOOK_URL"
+
+
+  notify-failure:
+    name: Notify Teams - Failure
+    if: failure() && github.event_name == 'push'
+    needs:
+      - test
+      - environment-promotion
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Send failure message to Teams
+        env:
+          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
+        run: |
+          curl -X POST \
+            -H "Content-Type: application/json" \
+            -d "{\"text\":\"❌ Brewsite pipeline failed on branch ${{ github.ref_name }}. Commit: ${{ github.sha }}\"}" \
+            "$TEAMS_WEBHOOK_URL"
