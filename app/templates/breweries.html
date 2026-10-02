@@ -1,6 +1,42 @@
 {% extends "base.html" %}
 {% block main %}
-    <p>Breweries Nearby</P>
-    <p>{{user}}</p>
+    <h1 class ="text-center">Breweries Nearby</h1>
+    <style>
+        .td_bgcolor td{
+            background-color: #76a4d2
+        }
+    </style>
+    <div class="container">
+        <table class="table table-bordered align-top">
+            <thead>
+                <tr>
+                    <th>Name:</th>
+                    <th>Type</th>
+                    <th>Country</th>
+                    <th>Address</th>
+                    <th>Phone</th>
+                    <th>Website</th>
+
+                </tr>
+            </thead>
+            <tbody>
+                {%for brewery in content %}
+                <tr{%if loop.index0 %2 == 1 %} class ="td_bgcolor" {%endif%}>
+                    <td>{{brewery.get("name")}}</td>
+                    <td>{{brewery.get("brewery_type")}}</td>
+                    <td>{{brewery.get("country")}}</td>
+                    <td>{{brewery.get("address_1")}}
+                        <br/>{{brewery.get("city")}}
+                            {{brewery.get("state_province")}}
+                            {{brewery.get("country")}}
+                    </td>
+                    <td>{{brewery.get("phone")}}</td>
+                    <td>{{brewery.get("website_url")}}</td>
+
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 
 {% endblock main %}
