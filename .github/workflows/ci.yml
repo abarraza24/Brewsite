@@ -14,33 +14,54 @@ on:
 
   workflow_dispatch:
 
+
 jobs:
+
+  # -------------------------------------------------------
+  # Run the Flask integration tests
+  # -------------------------------------------------------
   test:
     name: Run Flask Tests
     runs-on: ubuntu-latest
 
     steps:
+      # Download the repository onto the GitHub runner
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      # Install Python on the GitHub runner
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
+      # Upgrade pip before installing project dependencies
       - name: Upgrade pip
         run: python -m pip install --upgrade pip
 
+      # Install Flask, pytest, and the other dependencies
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      # Run the project's tests
       - name: Run pytest
         run: pytest -v
 
-  environment-check:
+
+  # -------------------------------------------------------
+  # Promote a successful push to its GitHub environment
+  #
+  # development branch -> development environment
+  # staging branch     -> staging environment
+  # production branch  -> production environment
+  #
+  # The production environment requires manual approval.
+  # -------------------------------------------------------
+  environment-promotion:
     name: Environment Promotion
     if: github.event_name == 'push'
-    needs: test
+    needs:
+      - test
     runs-on: ubuntu-latest
 
     environment:
@@ -48,4 +69,187 @@ jobs:
 
     steps:
       - name: Show promoted environment
-        run: echo "Promoted to ${{ github.ref_name }}"
+        run: |
+          echo "Brewsite successfully promoted."
+          echo "Environment: ${{ github.ref_name }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "Triggered by: ${{ github.actor }}"
+
+
+  # -------------------------------------------------------
+  # Send a Teams notification when the pipeline succeeds
+  # -------------------------------------------------------
+  notify-success:
+    name: Notify Teams - Success
+
+    # Only send this message for branch pushes.
+    # Both testing and environment promotion must succeed.
+    if: >
+      github.event_name == 'push' &&
+      needs.test.result == 'success' &&
+      needs.environment-promotion.result == 'success'
+
+    needs:
+      - test
+      - environment-promotion
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Send success message to Teams
+        env:
+          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
+
+        run: |
+          curl --fail-with-body -sS -X POST \
+            -H "Content-Type: application/json" \
+            -d '{
+              "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+              "type": "AdaptiveCard",
+              "version": "1.5",
+              "body": [
+                {
+                  "type": "TextBlock",
+                  "text": "Brewsite CI/CD",
+                  "weight": "Bolder",
+                  "size": "Large",
+                  "wrap": true
+                },
+                {
+                  "type": "TextBlock",
+                  "text": "✅ Pipeline Successful",
+                  "weight": "Bolder",
+                  "size": "Medium",
+                  "wrap": true
+                },
+                {
+                  "type": "TextBlock",
+                  "text": "The Brewsite CI/CD pipeline completed successfully.",
+                  "wrap": true
+                },
+                {
+                  "type": "FactSet",
+                  "facts": [
+                    {
+                      "title": "Environment:",
+                      "value": "${{ github.ref_name }}"
+                    },
+                    {
+                      "title": "Branch:",
+                      "value": "${{ github.ref_name }}"
+                    },
+                    {
+                      "title": "Repository:",
+                      "value": "${{ github.repository }}"
+                    },
+                    {
+                      "title": "Triggered by:",
+                      "value": "${{ github.actor }}"
+                    },
+                    {
+                      "title": "Commit:",
+                      "value": "${{ github.sha }}"
+                    }
+                  ]
+                }
+              ],
+              "actions": [
+                {
+                  "type": "Action.OpenUrl",
+                  "title": "View GitHub Actions Run",
+                  "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                }
+              ]
+            }' \
+            "$TEAMS_WEBHOOK_URL"
+
+
+  # -------------------------------------------------------
+  # Send a Teams notification when the pipeline fails
+  # -------------------------------------------------------
+  notify-failure:
+    name: Notify Teams - Failure
+
+    # always() is important because a failed test causes the
+    # environment-promotion job to be skipped.
+    if: >
+      always() &&
+      github.event_name == 'push' &&
+      (
+        needs.test.result == 'failure' ||
+        needs.environment-promotion.result == 'failure'
+      )
+
+    needs:
+      - test
+      - environment-promotion
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Send failure message to Teams
+        env:
+          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
+
+        run: |
+          curl --fail-with-body -sS -X POST \
+            -H "Content-Type: application/json" \
+            -d '{
+              "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+              "type": "AdaptiveCard",
+              "version": "1.5",
+              "body": [
+                {
+                  "type": "TextBlock",
+                  "text": "Brewsite CI/CD",
+                  "weight": "Bolder",
+                  "size": "Large",
+                  "wrap": true
+                },
+                {
+                  "type": "TextBlock",
+                  "text": "❌ Pipeline Failed",
+                  "weight": "Bolder",
+                  "size": "Medium",
+                  "wrap": true
+                },
+                {
+                  "type": "TextBlock",
+                  "text": "The Brewsite CI/CD pipeline encountered an error.",
+                  "wrap": true
+                },
+                {
+                  "type": "FactSet",
+                  "facts": [
+                    {
+                      "title": "Environment:",
+                      "value": "${{ github.ref_name }}"
+                    },
+                    {
+                      "title": "Branch:",
+                      "value": "${{ github.ref_name }}"
+                    },
+                    {
+                      "title": "Repository:",
+                      "value": "${{ github.repository }}"
+                    },
+                    {
+                      "title": "Triggered by:",
+                      "value": "${{ github.actor }}"
+                    },
+                    {
+                      "title": "Commit:",
+                      "value": "${{ github.sha }}"
+                    }
+                  ]
+                }
+              ],
+              "actions": [
+                {
+                  "type": "Action.OpenUrl",
+                  "title": "View Failed GitHub Actions Run",
+                  "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                }
+              ]
+            }' \
+            "$TEAMS_WEBHOOK_URL"
