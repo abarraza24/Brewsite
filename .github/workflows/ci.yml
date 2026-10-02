@@ -7,15 +7,17 @@ on:
       - staging
       - production
 
+  pull_request:
+    branches:
+      - staging
+      - production
+
   workflow_dispatch:
 
 jobs:
   test:
     name: Run Flask Tests
     runs-on: ubuntu-latest
-
-    environment:
-      name: ${{ github.ref_name }}
 
     steps:
       - name: Checkout repository
