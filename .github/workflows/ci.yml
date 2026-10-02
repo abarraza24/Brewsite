@@ -1,0 +1,39 @@
+name: Brewsite CI
+
+on:
+  push:
+    branches:
+      - development
+      - staging
+      - production
+
+  pull_request:
+    branches:
+      - development
+      - staging
+      - production
+
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Run Flask Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run pytest
+        run: pytest -v
